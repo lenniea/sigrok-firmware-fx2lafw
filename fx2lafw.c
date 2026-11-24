@@ -71,7 +71,7 @@ static void setup_endpoints(void)
 	SYNCDELAY();
 	EP4CFG &= ~bmVALID;
 	SYNCDELAY();
-	EP6CFG &= ~bmVALID;
+	EP6CFG = bmVALID | bmTYPE1;
 	SYNCDELAY();
 	EP8CFG &= ~bmVALID;
 	SYNCDELAY();
@@ -79,6 +79,7 @@ static void setup_endpoints(void)
 	/* EP2: Reset the FIFOs. */
 	/* Note: RESETFIFO() gets the EP number WITHOUT bit 7 set/cleared. */
 	RESETFIFO(0x02);
+	RESETFIFO(0x06);
 
 	/* EP2: Enable AUTOIN mode. Set FIFO width to 8bits. */
 	EP2FIFOCFG = bmAUTOIN;
@@ -93,6 +94,14 @@ static void setup_endpoints(void)
 	/* EP2: Set the GPIF flag to 'full'. */
 	EP2GPIFFLGSEL = (1 << 1) | (0 << 1);
 	SYNCDELAY();
+	RESETFIFO(0x06);
+	EP6FIFOCFG = bmAUTOOUT;
+	SYNCDELAY();
+	EP6GPIFFLGSEL = 0x01;
+	SYNCDELAY();
+	PORTACFG &= ~0x01;
+	IOA &= ~0x01;
+	OEA |= 0x01;
 }
 
 static void send_fw_version(void)
@@ -129,6 +138,7 @@ BOOL handle_vendorcommand(BYTE cmd)
 	/* Protocol implementation */
 	switch (cmd) {
 	case CMD_START:
+	case CMD_START_OUT:
 		/* Tell hardware we are ready to receive data. */
 		vendor_command = cmd;
 		EP0BCL = 0;
@@ -136,6 +146,9 @@ BOOL handle_vendorcommand(BYTE cmd)
 		return TRUE;
 	case CMD_GET_FW_VERSION:
 		send_fw_version();
+		return TRUE;
+	case CMD_STOP:
+		gpif_stop_all();
 		return TRUE;
 	case CMD_GET_REVID_VERSION:
 		send_revid_version();
@@ -168,6 +181,7 @@ BOOL handle_set_interface(BYTE ifc, BYTE alt_ifc)
 	/* (2) Reset data toggles of the EPs in the interface. */
 	/* Note: RESETTOGGLE() gets the EP number WITH bit 7 set/cleared. */
 	RESETTOGGLE(0x82);
+	RESETTOGGLE(0x06);
 
 	/* (3) Restore EPs to their default conditions. */
 	/* Note: RESETFIFO() gets the EP number WITHOUT bit 7 set/cleared. */
@@ -315,6 +329,13 @@ void fx2lafw_poll(void)
 			}
 
 			/* Acknowledge the vendor command. */
+			vendor_command = 0;
+			break;
+		case CMD_START_OUT:
+			if ((EP0CS & bmEPBUSY) != 0)
+				break;
+			if (EP0BCL == sizeof(struct cmd_start_acquisition))
+				gpif_generation_start((const struct cmd_start_acquisition *)EP0BUF);
 			vendor_command = 0;
 			break;
 		default:

@@ -34,5 +34,7 @@ void gpif_init_la(void);
 bool gpif_acquisition_prepare(const struct cmd_start_acquisition *cmd);
 void gpif_acquisition_start(void);
 void gpif_poll(void);
+bool gpif_generation_start(const struct cmd_start_acquisition *cmd);
+void gpif_stop_all(void);
 
 #endif

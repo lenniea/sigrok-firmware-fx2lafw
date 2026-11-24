@@ -11,6 +11,20 @@ analyzers based on the Cypress EZ-USB FX2(LP) chip, as well as the
 Hantek 6022BE and Sainsmart DDS120 USB oscilloscopes.
 
 
+Modifications
+-------------
+
+Making simple modifications to 24 Mhz 8-bit board:
+
+![24 Mhz 8-bit](doc/logic8-mods.png)
+
+
+and the Hantek 6022 BL board:
+![Hantek 6022 BL](doc/hantek-6022bl-mod.png)
+
+enables a simple streaming Signal Generator "playback" function by adding an EP6 OUT endpoint and custom CTL message on PA0.  Note the pulldown resistor makes this backwards compatible with older firmware which left PA0 as input pin.
+
+
 Status
 ------
 

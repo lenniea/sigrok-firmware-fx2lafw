@@ -245,6 +245,9 @@ bool gpif_acquisition_prepare(const struct cmd_start_acquisition *cmd)
 
 void gpif_acquisition_start(void)
 {
+	IOA &= ~0x01;
+	GPIFIDLECTL = 0x00;
+
 	/* Execute the whole GPIF waveform once. */
 	gpif_set_tc16(1);
 
@@ -281,4 +284,65 @@ void gpif_poll(void)
 
 		gpif_acquiring = STOPPED;
 	}
+}
+
+void gpif_stop_all(void)
+{
+	GPIFABORT = 0xff;
+	while (!(GPIFTRIG & 0x80));
+	GPIFIDLECTL = 0x00;
+	GPIFIDLECS = 0x00;
+	IOA &= ~0x01;
+	SYNCDELAY();
+	FIFORESET = 0x80; SYNCDELAY();
+	EP6FIFOCFG = 0;   SYNCDELAY();
+	FIFORESET = 0x06; SYNCDELAY();
+	EP6FIFOCFG = bmAUTOOUT; SYNCDELAY();
+	FIFORESET = 0x00; SYNCDELAY();
+}
+
+bool gpif_generation_start(const struct cmd_start_acquisition *cmd)
+{
+	uint8_t i;
+	uint16_t delay;
+	xdata volatile BYTE *wf2 = (&GPIF_WAVE_DATA) + 64;
+
+	gpif_stop_all();
+	FIFORESET = 0x80; SYNCDELAY();
+	EP6FIFOCFG = (cmd->flags & CMD_START_FLAGS_SAMPLE_16BIT) ? (bmAUTOOUT | bmWORDWIDE) : bmAUTOOUT;
+	SYNCDELAY();
+	FIFORESET = 0x00; SYNCDELAY();
+
+	for (i = 0; i < 4; i++) { OUTPKTEND = 0x86; SYNCDELAY(); }
+
+	IFCONFIG = (cmd->flags & CMD_START_FLAGS_CLK_48MHZ)
+		? (bmIFCLKSRC | bm3048MHZ | bmIFCLKOE | bmGSTATE | bmIFGPIF)
+		: (bmIFCLKSRC | bmIFCLKOE | bmGSTATE | bmIFGPIF);
+	SYNCDELAY();
+
+	GPIFCTLCFG = 0x00;
+	GPIFIDLECTL = 0x01; /* Saleae clone DIR = 1 (A->B output) */
+	GPIFIDLECS = 0x01;
+	IOA |= 0x01;        /* Hantek 6022BL 1DIR/2DIR = 1 (output) */
+	SYNCDELAY();
+
+	delay = ((uint16_t)cmd->sample_delay_h << 8) | cmd->sample_delay_l;
+	if (delay < 1) delay = 1;
+
+	GPIFWFSELECT = (0x3 << 6) | (0x2 << 4) | (0x2 << 2) | (0x0 << 0);
+
+	/* State 0: Wait while EP6 Empty flag == 1, hold CTL0 = 1 */
+	wf2[0]  = (0 << 3) | 1;
+	wf2[8]  = 0x03;
+	wf2[16] = 0x01;
+	wf2[24] = (6 << 3) | 6;
+
+	/* State 1: Drive PB0..7 (and PD0..7 if 16-bit) from EP6 FIFO, hold `delay` */
+	wf2[1]  = (delay > 255) ? 255 : (uint8_t)delay;
+	wf2[9]  = 0x02;
+	wf2[17] = 0x01;
+	wf2[25] = 0x00;
+
+	GPIFTRIG = 2;
+	return true;
 }
