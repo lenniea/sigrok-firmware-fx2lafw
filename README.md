@@ -16,11 +16,11 @@ Modifications
 
 Making simple modifications to 24 Mhz 8-bit board:
 
-![24 Mhz 8-bit](doc/logic8-mods.png)
+![24 Mhz 8-bit](doc/logic8-mods.svg)
 
 
 and the Hantek 6022 BL board:
-![Hantek 6022 BL](doc/hantek-6022bl-mod.png)
+![Hantek 6022 BL](doc/hantek-6022bl-mods.svg)
 
 enables a simple streaming Signal Generator "playback" function by adding an EP6 OUT endpoint and custom CTL message on PA0.  Note the pulldown resistor makes this backwards compatible with older firmware which left PA0 as input pin.
 
